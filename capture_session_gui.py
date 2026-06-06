@@ -37,8 +37,6 @@ RESOLUTIONS   = ["1920x1080", "1280x720", "3840x2160"]
 PIXEL_FORMATS = ["uyvy422", "nv12", "yuv420p"]
 FRAMERATES    = [30, 25, 60, 15]
 THUMB_W, THUMB_H = 160, 90   # サムネイルサイズ (px)
-PREVIEW_INTERVAL_MS = 1000   # プレビュー更新間隔 (ms)
-PREVIEW_TMPFILE     = "/tmp/capture_session_preview.png"  # プレビュー用一時ファイル
 
 # ── キーバインドのデフォルト値と設定ファイルパス ─────────────────
 KEYBIND_FILE = Path.home() / ".capture_session_keys.json"
@@ -173,13 +171,6 @@ class App(tk.Tk):
         self.capture_dir     : Optional[Path] = None
         self.log_fh          = None
 
-        # プレビューウィンドウ関連
-        self._preview_win    : Optional[tk.Toplevel] = None
-        self._preview_label  : Optional[tk.Label]    = None
-        self._preview_active = False
-        self._preview_job    = None   # after() のジョブID
-        self._preview_in_flight = False  # プレビュー取得中フラグ
-
         # ── tkinter 変数 ──
         self.var_device_label = tk.StringVar(value="（リスト更新してください）")
         self.var_device_index = tk.StringVar(value="")
@@ -298,9 +289,9 @@ class App(tk.Tk):
                                    command=self._end_session, state=tk.DISABLED)
         self._btn_end.pack(fill=tk.X, pady=(4, 0))
 
-        self._btn_preview = ttk.Button(ctrl_frame, text="📺 プレビュー表示",
-                                       command=self._toggle_preview)
-        self._btn_preview.pack(fill=tk.X, pady=(4, 0))
+        self._btn_quicktime = ttk.Button(ctrl_frame, text="📺 QuickTime で確認",
+                                         command=self._open_quicktime)
+        self._btn_quicktime.pack(fill=tk.X, pady=(4, 0))
 
         # 進捗バー
         self._progress = ttk.Progressbar(ctrl_frame, maximum=100, value=0)
@@ -635,7 +626,6 @@ class App(tk.Tk):
 
     # FIX #6: ウィンドウクローズ時の安全な終了処理
     def _on_close(self):
-        self._stop_preview()
         if self.session_active:
             self._end_session()
         else:
@@ -650,143 +640,24 @@ class App(tk.Tk):
                 pass
             self.log_fh = None
 
-    # ── プレビューウィンドウ ─────────────────────────────────────────
+    # ── QuickTime 連携 ──────────────────────────────────────────────
 
-    def _toggle_preview(self):
-        if self._preview_active:
-            self._stop_preview()
-        else:
-            self._start_preview()
-
-    def _start_preview(self):
-        if not self.ffmpeg:
-            messagebox.showerror("エラー", "ffmpeg が見つかりません")
-            return
-        if not self.var_device_index.get():
-            messagebox.showwarning("デバイス未選択",
-                                   "先にデバイスを選択してください。")
-            return
-
-        # ウィンドウ生成
-        win = tk.Toplevel(self)
-        win.title("📺 プレビュー")
-        win.attributes("-topmost", True)   # 常に最前面
-        win.resizable(True, True)
-        win.protocol("WM_DELETE_WINDOW", self._stop_preview)
-
-        # デバイス名をタイトルに表示
-        device_label = self.var_device_label.get()
-        win.title(f"📺 {device_label}")
-
-        # 解像度からアスペクト比を計算して初期ウィンドウサイズを決定
+    def _open_quicktime(self):
+        """QuickTime Player をムービー収録モードで起動する。"""
         try:
-            w_str, h_str = self.var_resolution.get().split("x")
-            aspect = int(w_str) / int(h_str)
-        except Exception:
-            aspect = 16 / 9
-        init_w, init_h = 640, int(640 / aspect)
-        win.geometry(f"{init_w}x{init_h}")
+            # osascript の -e は1行ずつ複数回渡す
+            subprocess.Popen([
+                "osascript",
+                "-e", 'tell application "QuickTime Player"',
+                "-e", "    activate",
+                "-e", "    new movie recording",
+                "-e", "end tell",
+            ])
+            self.var_status.set("QuickTime Player を起動しました")
+        except Exception as e:
+            messagebox.showerror("QuickTime 起動エラー", str(e))
 
-        # 背景ラベル（画像表示用）
-        lbl = tk.Label(win, background="black", cursor="none")
-        lbl.pack(fill=tk.BOTH, expand=True)
-
-        # ステータスラベル
-        status_lbl = tk.Label(win, text="取得中…", background="black",
-                               foreground="#888", font=("Menlo", 10))
-        status_lbl.pack(side=tk.BOTTOM, fill=tk.X)
-
-        self._preview_win        = win
-        self._preview_label      = lbl
-        self._preview_status_lbl = status_lbl
-        self._preview_active     = True
-        self._preview_in_flight  = False
-        self._btn_preview.config(text="📺 プレビュー停止")
-
-        self._preview_tick()
-
-    def _stop_preview(self):
-        self._preview_active = False
-        if self._preview_job:
-            try:
-                self.after_cancel(self._preview_job)
-            except Exception:
-                pass
-            self._preview_job = None
-        if self._preview_win:
-            try:
-                self._preview_win.destroy()
-            except Exception:
-                pass
-            self._preview_win   = None
-            self._preview_label = None
-        # 一時ファイル削除
-        try:
-            if os.path.exists(PREVIEW_TMPFILE):
-                os.remove(PREVIEW_TMPFILE)
-        except Exception:
-            pass
-        self._btn_preview.config(text="📺 プレビュー表示")
-
-    def _preview_tick(self):
-        """1秒ごとにフレームを取得してプレビューを更新する"""
-        if not self._preview_active:
-            return
-        # 前回の取得がまだ完了していない場合はスキップ
-        if self._preview_in_flight:
-            self._preview_job = self.after(PREVIEW_INTERVAL_MS, self._preview_tick)
-            return
-
-        self._preview_in_flight = True
-
-        def _fetch():
-            err = capture_frame(
-                ffmpeg       = self.ffmpeg,
-                device_index = self.var_device_index.get(),
-                resolution   = self.var_resolution.get(),
-                pixel_format = self.var_pixel_format.get(),
-                framerate    = int(self.var_framerate.get()),
-                output_path  = PREVIEW_TMPFILE,
-            )
-            self.after(0, lambda: self._preview_update(err))
-
-        threading.Thread(target=_fetch, daemon=True).start()
-
-    def _preview_update(self, err: str):
-        """取得完了後にメインスレッドで画像を更新"""
-        self._preview_in_flight = False
-
-        if not self._preview_active or not self._preview_label:
-            return
-
-        ts = datetime.now().strftime("%H:%M:%S")
-
-        if err:
-            self._preview_status_lbl.config(
-                text=f"{ts}  取得失敗: {err.strip()[:80]}"
-            )
-        elif os.path.exists(PREVIEW_TMPFILE):
-            try:
-                img = tk.PhotoImage(file=PREVIEW_TMPFILE)
-                # ウィンドウサイズに合わせてリサイズ
-                win_w = self._preview_win.winfo_width()
-                win_h = self._preview_win.winfo_height() - 24  # ステータス分を引く
-                if win_w > 1 and win_h > 1:
-                    sx = max(1, -(-img.width()  // win_w))
-                    sy = max(1, -(-img.height() // win_h))
-                    s  = max(sx, sy)
-                    img = img.subsample(s, s)
-                self._preview_label.config(image=img)
-                self._preview_label.image = img   # GC防止
-                self._preview_status_lbl.config(text=f"{ts}  更新")
-            except Exception as e:
-                self._preview_status_lbl.config(text=f"{ts}  表示エラー: {e}")
-
-        # 次回スケジュール
-        if self._preview_active:
-            self._preview_job = self.after(PREVIEW_INTERVAL_MS, self._preview_tick)
-
-    # ── キャプチャ操作 ────────────────────────────────────────────
+        # ── キャプチャ操作 ────────────────────────────────────────────
 
     def _do_capture(self):
         if not self.session_active:

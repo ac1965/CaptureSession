@@ -171,6 +171,10 @@ class App(tk.Tk):
         self.capture_dir     : Optional[Path] = None
         self.log_fh          = None
 
+        # コントローラサブウィンドウ関連
+        self._ctrl_win       : Optional[tk.Toplevel] = None
+        self._ctrl_topmost   = True   # 最前面固定の初期値
+
         # ── tkinter 変数 ──
         self.var_device_label = tk.StringVar(value="（リスト更新してください）")
         self.var_device_index = tk.StringVar(value="")
@@ -293,6 +297,10 @@ class App(tk.Tk):
                                          command=self._open_quicktime)
         self._btn_quicktime.pack(fill=tk.X, pady=(4, 0))
 
+        self._btn_ctrl_win = ttk.Button(ctrl_frame, text="🎮 コントローラを開く",
+                                        command=self._toggle_ctrl_win)
+        self._btn_ctrl_win.pack(fill=tk.X, pady=(4, 0))
+
         # 進捗バー
         self._progress = ttk.Progressbar(ctrl_frame, maximum=100, value=0)
         self._progress.pack(fill=tk.X, pady=(6, 0))
@@ -408,6 +416,9 @@ class App(tk.Tk):
         self._btn_capture.config(text=f"📷  キャプチャ  [{fmt(self._keys['capture'])}]")
         self._btn_retake .config(text=f"↩ 再撮り  [{fmt(self._keys['retake'])}]")
         self._btn_skip   .config(text=f"⏭ スキップ  [{fmt(self._keys['skip'])}]")
+        self._sync_ctrl_win()
+        # コントローラウィンドウが開いていればキーバインドも再適用
+        self._apply_ctrl_win_keybinds()
 
     def _load_keys(self) -> dict:
         try:
@@ -512,9 +523,24 @@ class App(tk.Tk):
         if self._devices:
             labels = [f"[{idx}] {name}" for idx, name in self._devices]
             self._device_combo["values"] = labels
-            self._device_combo.current(0)
-            self.var_device_index.set(self._devices[0][0])
-            self.var_device_label.set(labels[0])
+
+            # 既に選択済みのデバイスインデックスを維持する
+            # 未選択 or 選択が一覧に存在しない場合のみ [0] にフォールバック
+            current_idx = self.var_device_index.get()
+            matched = next(
+                (i for i, (idx, _) in enumerate(self._devices) if idx == current_idx),
+                None
+            )
+            if matched is not None:
+                # 以前の選択を復元
+                self._device_combo.current(matched)
+                self.var_device_label.set(labels[matched])
+            else:
+                # 初回 or 選択デバイスが消えた場合は先頭を選択
+                self._device_combo.current(0)
+                self.var_device_index.set(self._devices[0][0])
+                self.var_device_label.set(labels[0])
+
             self.var_status.set(f"{len(self._devices)} 台のデバイスを検出")
         else:
             self._device_combo["values"] = []
@@ -537,8 +563,10 @@ class App(tk.Tk):
         def _request():
             granted = request_camera_permission()
             if granted:
-                # 権限取得完了後にデバイス一覧を自動取得
-                self.after(0, self._refresh_devices_async)
+                # 権限取得完了後、デバイス未取得の場合のみ自動取得
+                # （手動更新済みの場合は上書きしない）
+                if not self._devices:
+                    self.after(0, self._refresh_devices_async)
             else:
                 self.after(0, self._warn_camera_permission)
 
@@ -601,6 +629,7 @@ class App(tk.Tk):
             w.destroy()
 
         self._set_session_ui(active=True)
+        self._ctrl_update_preview(None, None)
         self._append_log(f"START device='{self.var_device_label.get()}' "
                          f"resolution={self.var_resolution.get()} session={ts}")
         self.var_status.set("セッション開始 — Enter でキャプチャ")
@@ -623,6 +652,7 @@ class App(tk.Tk):
         self._btn_capture.config(state=state_on)
         self._btn_retake .config(state=state_on)
         self._btn_skip   .config(state=state_on)
+        self._sync_ctrl_win()
 
     # FIX #6: ウィンドウクローズ時の安全な終了処理
     def _on_close(self):
@@ -657,7 +687,192 @@ class App(tk.Tk):
         except Exception as e:
             messagebox.showerror("QuickTime 起動エラー", str(e))
 
-        # ── キャプチャ操作 ────────────────────────────────────────────
+        # ── コントローラサブウィンドウ ──────────────────────────────────────
+
+    def _toggle_ctrl_win(self):
+        if self._ctrl_win and self._ctrl_win.winfo_exists():
+            self._close_ctrl_win()
+        else:
+            self._open_ctrl_win()
+
+    def _open_ctrl_win(self):
+        win = tk.Toplevel(self)
+        win.title("Controller")
+        win.resizable(False, False)
+        win.protocol("WM_DELETE_WINDOW", self._close_ctrl_win)
+        self._ctrl_win = win
+        win.attributes("-topmost", self._ctrl_topmost)
+
+        # メインウィンドウと同じ位置に開く
+        self.update_idletasks()
+        mx = self.winfo_x()
+        my = self.winfo_y()
+        win.geometry(f"+{mx}+{my}")
+
+        PW = 240  # ウィンドウ幅基準（コンパクト化）
+
+        # ── セッション開始/終了 ──
+        sess_row = tk.Frame(win)
+        sess_row.pack(fill=tk.X, padx=12, pady=(10, 4))
+        self._ctrl_btn_start = ttk.Button(
+            sess_row, text="▶ 開始",
+            command=self._start_session,
+            state=self._btn_start["state"],
+        )
+        self._ctrl_btn_start.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self._ctrl_btn_end = ttk.Button(
+            sess_row, text="■ 終了",
+            command=self._end_session,
+            state=self._btn_end["state"],
+        )
+        self._ctrl_btn_end.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(4, 0))
+
+        # ── キャプチャ画像プレビュー ──
+        PREV_W, PREV_H = PW, int(PW * 9 / 16)
+        self._ctrl_preview_lbl = tk.Label(
+            win, background="#111",
+            width=PW, height=PREV_H,
+            relief=tk.FLAT,
+        )
+        self._ctrl_preview_lbl.pack(padx=12, pady=(4, 0))
+        self._ctrl_preview_seq = tk.Label(
+            win, text="—", foreground="#666", font=("Menlo", 9)
+        )
+        self._ctrl_preview_seq.pack()
+
+        # ── 進捗バー + ラベル ──
+        self._ctrl_progress = ttk.Progressbar(win, maximum=100, value=0, length=PW)
+        self._ctrl_progress.pack(padx=12, pady=(6, 0))
+        self._ctrl_progress_lbl = tk.Label(win, text="", font=("Helvetica", 11))
+        self._ctrl_progress_lbl.pack(pady=(0, 6))
+
+        # ── キャプチャ操作ボタン ──
+        self._ctrl_btn_capture = ttk.Button(
+            win, text=self._btn_capture["text"],
+            command=self._do_capture,
+            state=self._btn_capture["state"],
+            width=32,
+        )
+        self._ctrl_btn_capture.pack(fill=tk.X, padx=12, pady=(0, 4))
+
+        row = tk.Frame(win)
+        row.pack(fill=tk.X, padx=12, pady=(0, 4))
+        self._ctrl_btn_retake = ttk.Button(
+            row, text=self._btn_retake["text"],
+            command=self._do_retake,
+            state=self._btn_retake["state"],
+        )
+        self._ctrl_btn_retake.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self._ctrl_btn_skip = ttk.Button(
+            row, text=self._btn_skip["text"],
+            command=self._do_skip,
+            state=self._btn_skip["state"],
+        )
+        self._ctrl_btn_skip.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(4, 0))
+
+        # ── ステータス ──
+        tk.Label(
+            win, textvariable=self.var_status,
+            font=("Helvetica", 10), foreground="#888",
+            wraplength=PW, justify=tk.CENTER,
+        ).pack(fill=tk.X, padx=12, pady=(4, 2))
+
+        # ── 最前面トグル ──
+        self._var_topmost = tk.BooleanVar(value=self._ctrl_topmost)
+        ttk.Checkbutton(
+            win, text="最前面に固定",
+            variable=self._var_topmost,
+            command=self._toggle_topmost,
+        ).pack(pady=(2, 8))
+
+        self._apply_ctrl_win_keybinds()
+
+        # 既にキャプチャ済み画像があればプレビューを表示
+        self._ctrl_update_preview(self.last_png_path, self.last_png_seq)
+
+        # メインウィンドウを非表示
+        self.withdraw()
+        self._btn_ctrl_win.config(text="Controller を閉じる")
+        win.bind("<Destroy>", lambda e: self._on_ctrl_win_destroy())
+
+    def _close_ctrl_win(self):
+        if self._ctrl_win and self._ctrl_win.winfo_exists():
+            self._ctrl_win.unbind("<Destroy>")
+            self._ctrl_win.destroy()
+        self._ctrl_win = None
+        self.deiconify()
+        self._btn_ctrl_win.config(text="Controller を開く")
+
+    def _on_ctrl_win_destroy(self):
+        self._ctrl_win = None
+        self.deiconify()
+        self._btn_ctrl_win.config(text="Controller を開く")
+
+    def _toggle_topmost(self):
+        self._ctrl_topmost = self._var_topmost.get()
+        if self._ctrl_win and self._ctrl_win.winfo_exists():
+            self._ctrl_win.attributes("-topmost", self._ctrl_topmost)
+
+    def _apply_ctrl_win_keybinds(self):
+        if not self._ctrl_win:
+            return
+        win = self._ctrl_win
+        for seq in getattr(self, "_bound_keys_capture", []):
+            win.bind(seq, lambda e: self._do_capture())
+        for seq in getattr(self, "_bound_keys_retake", []):
+            win.bind(seq, lambda e: self._do_retake())
+        for seq in getattr(self, "_bound_keys_skip", []):
+            win.bind(seq, lambda e: self._do_skip())
+
+    def _sync_ctrl_win(self):
+        if not self._ctrl_win or not self._ctrl_win.winfo_exists():
+            return
+        # セッションボタン
+        self._ctrl_btn_start.config(state=self._btn_start["state"])
+        self._ctrl_btn_end  .config(state=self._btn_end["state"])
+        # キャプチャボタン
+        self._ctrl_btn_capture.config(
+            state=self._btn_capture["state"],
+            text=self._btn_capture["text"],
+        )
+        self._ctrl_btn_retake.config(
+            state=self._btn_retake["state"],
+            text=self._btn_retake["text"],
+        )
+        self._ctrl_btn_skip.config(
+            state=self._btn_skip["state"],
+            text=self._btn_skip["text"],
+        )
+        # 進捗
+        self._ctrl_progress["value"] = self._progress["value"]
+        self._ctrl_progress_lbl.config(text=self._lbl_progress["text"])
+
+    def _ctrl_update_preview(self, png_path: Optional[str], seq_str: Optional[str]):
+        if not self._ctrl_win or not self._ctrl_win.winfo_exists():
+            return
+        if png_path and os.path.exists(png_path):
+            try:
+                img = tk.PhotoImage(file=png_path)
+                w, h = img.width(), img.height()
+                # プレビューエリア (260 x 146) に収める
+                sx = max(1, -(-w // 240))
+                sy = max(1, -(-h // 135))
+                s  = max(sx, sy)
+                img = img.subsample(s, s)
+                self._ctrl_preview_lbl.config(image=img)
+                self._ctrl_preview_lbl.image = img   # GC防止
+                self._ctrl_preview_seq.config(
+                    text=f"#{seq_str}" if seq_str else "",
+                    foreground="#aaa",
+                )
+            except Exception:
+                self._ctrl_preview_lbl.config(image="")
+                self._ctrl_preview_seq.config(text="表示失敗", foreground="#f66")
+        else:
+            self._ctrl_preview_lbl.config(image="")
+            self._ctrl_preview_seq.config(text="—", foreground="#666")
+
+    # ── キャプチャ操作 ────────────────────────────────────────────
 
     def _do_capture(self):
         if not self.session_active:
@@ -709,10 +924,12 @@ class App(tk.Tk):
             self._add_thumbnail(seq_str, out, kind="ok")
             self.var_status.set(f"#{seq_str} キャプチャ完了")
             self._update_progress()
+            self._ctrl_update_preview(out, seq_str)
 
         # FIX #5: session_active を確認してからボタンを戻す
         if self.session_active:
             self._btn_capture.config(state=tk.NORMAL)
+        self._sync_ctrl_win()
 
     def _do_retake(self):
         if not self.session_active or not self.last_png_path:
@@ -733,6 +950,7 @@ class App(tk.Tk):
         self.var_status.set(f"#{seq_str} を破棄 — 再撮りしてください")
         self._remove_last_thumbnail()
         self._update_progress()
+        self._ctrl_update_preview(None, None)
 
     def _do_skip(self):
         if not self.session_active:
@@ -768,6 +986,7 @@ class App(tk.Tk):
         else:
             self._progress["value"] = 0
             self._lbl_progress.config(text=f"{self.png_count} PNG")
+        self._sync_ctrl_win()
 
     # ── サムネイル ────────────────────────────────────────────────
 

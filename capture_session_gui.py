@@ -48,6 +48,13 @@ DEFAULT_KEYS = {
 
 # ── ffmpeg ヘルパー ───────────────────────────────────────────────
 
+def _subsample_for(img_w: int, img_h: int, max_w: int, max_h: int) -> int:
+    """PhotoImage.subsample() に渡す整数倍率を計算する（枠に収まる最小倍率）。"""
+    sx = max(1, -(-img_w // max_w))   # ceil(img_w / max_w)
+    sy = max(1, -(-img_h // max_h))   # ceil(img_h / max_h)
+    return max(sx, sy)
+
+
 def find_ffmpeg() -> Optional[str]:
     for p in FFMPEG_CANDIDATES:
         if os.path.isfile(p) and os.access(p, os.X_OK):
@@ -173,7 +180,8 @@ class App(tk.Tk):
 
         # コントローラサブウィンドウ関連
         self._ctrl_win       : Optional[tk.Toplevel] = None
-        self._ctrl_topmost   = True   # 最前面固定の初期値
+        self._ctrl_topmost   = True    # 最前面固定の初期値
+        self._ctrl_alpha     = 1.0    # 不透明度の初期値 (0.2〜1.0)
 
         # ── tkinter 変数 ──
         self.var_device_label = tk.StringVar(value="（リスト更新してください）")
@@ -191,7 +199,7 @@ class App(tk.Tk):
         self._keys = self._load_keys()
 
         self._build_ui()
-        self._bind_keys()
+        self._apply_keybinds()
 
         # FIX #6: ウィンドウ閉じるボタンでもログを確実にクローズ
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -366,9 +374,6 @@ class App(tk.Tk):
 
     # ── キーバインド ─────────────────────────────────────────────
 
-    def _bind_keys(self):
-        self._apply_keybinds()
-
     def _tk_key(self, key: str) -> str:
         """キー名を tkinter イベント文字列に変換"""
         # 1文字の印字可能文字はそのまま、特殊キーは <...> に包む
@@ -493,15 +498,13 @@ class App(tk.Tk):
     # ── デバイス操作 ──────────────────────────────────────────────
 
     def _refresh_devices(self):
-        """ボタンから呼ばれる。バックグラウンドで取得してUIを更新。"""
+        """ボタン押下 / 自動取得の共通エントリ。バックグラウンドでデバイスを取得する。"""
         self.var_status.set("デバイス一覧を取得中…")
         self.update_idletasks()
         self._refresh_devices_async()
 
     def _refresh_devices_async(self):
         """バックグラウンドスレッドでデバイス取得 → メインスレッドでUI更新。"""
-        self.var_status.set("デバイス一覧を取得中…")
-        self.update_idletasks()
 
         def _fetch():
             raw = list_avfoundation_devices()
@@ -580,8 +583,7 @@ class App(tk.Tk):
             "で CaptureSession を許可してから再起動してください。\n\n"
             "設定画面を開きますか？"
         )
-        import subprocess as _sp
-        _sp.Popen([
+        subprocess.Popen([
             "open",
             "x-apple.systempreferences:"
             "com.apple.preference.security?Privacy_Camera"
@@ -656,6 +658,7 @@ class App(tk.Tk):
 
     # FIX #6: ウィンドウクローズ時の安全な終了処理
     def _on_close(self):
+        self._close_ctrl_win()
         if self.session_active:
             self._end_session()
         else:
@@ -675,7 +678,6 @@ class App(tk.Tk):
     def _open_quicktime(self):
         """QuickTime Player をムービー収録モードで起動する。"""
         try:
-            # osascript の -e は1行ずつ複数回渡す
             subprocess.Popen([
                 "osascript",
                 "-e", 'tell application "QuickTime Player"',
@@ -687,7 +689,30 @@ class App(tk.Tk):
         except Exception as e:
             messagebox.showerror("QuickTime 起動エラー", str(e))
 
-        # ── コントローラサブウィンドウ ──────────────────────────────────────
+    def _stop_quicktime_recording(self):
+        """QuickTime Player のムービー収録を強制停止する（保存ダイアログは出さない）。"""
+        try:
+            result = subprocess.run([
+                "osascript",
+                "-e", 'tell application "QuickTime Player"',
+                # 全ムービー収録ドキュメントの録画を停止
+                "-e", "    repeat with d in (get every document)",
+                "-e", "        if class of d is movie recording document then",
+                "-e", "            try",
+                "-e", "                stop d",
+                "-e", "            end try",
+                "-e", "        end if",
+                "-e", "    end repeat",
+                "-e", "end tell",
+            ], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                self.var_status.set("QuickTime 録画を停止しました")
+            else:
+                self.var_status.set("QuickTime 録画停止: " + result.stderr.strip()[:60])
+        except Exception as e:
+            messagebox.showerror("QuickTime 停止エラー", str(e))
+
+    # ── コントローラサブウィンドウ ──────────────────────────────────────
 
     def _toggle_ctrl_win(self):
         if self._ctrl_win and self._ctrl_win.winfo_exists():
@@ -702,6 +727,7 @@ class App(tk.Tk):
         win.protocol("WM_DELETE_WINDOW", self._close_ctrl_win)
         self._ctrl_win = win
         win.attributes("-topmost", self._ctrl_topmost)
+        win.attributes("-alpha", self._ctrl_alpha)
 
         # メインウィンドウと同じ位置に開く
         self.update_idletasks()
@@ -727,26 +753,46 @@ class App(tk.Tk):
         )
         self._ctrl_btn_end.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(4, 0))
 
-        # ── キャプチャ画像プレビュー ──
-        PREV_W, PREV_H = PW, int(PW * 9 / 16)
-        self._ctrl_preview_lbl = tk.Label(
-            win, background="#111",
-            width=PW, height=PREV_H,
-            relief=tk.FLAT,
-        )
-        self._ctrl_preview_lbl.pack(padx=12, pady=(4, 0))
-        self._ctrl_preview_seq = tk.Label(
-            win, text="—", foreground="#666", font=("Menlo", 9)
-        )
-        self._ctrl_preview_seq.pack()
+        # ── QuickTime 制御 ──  [2]
+        qt_row = tk.Frame(win)
+        qt_row.pack(fill=tk.X, padx=12, pady=(0, 4))
+        ttk.Button(
+            qt_row, text="📺 QT 起動/前面",
+            command=self._open_quicktime,
+            width=14,
+        ).pack(side=tk.LEFT, fill=tk.X, expand=True)
+        ttk.Button(
+            qt_row, text="⏹ QT 録画停止",
+            command=self._stop_quicktime_recording,
+            width=14,
+        ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(4, 0))
 
-        # ── 進捗バー + ラベル ──
-        self._ctrl_progress = ttk.Progressbar(win, maximum=100, value=0, length=PW)
-        self._ctrl_progress.pack(padx=12, pady=(6, 0))
-        self._ctrl_progress_lbl = tk.Label(win, text="", font=("Helvetica", 11))
-        self._ctrl_progress_lbl.pack(pady=(0, 6))
+        # ── 最前面トグル + 不透明度 ──  [8]
+        bottom = tk.Frame(win)
+        bottom.pack(fill=tk.X, padx=12, pady=(0, 6))
 
-        # ── キャプチャ操作ボタン ──
+        self._var_topmost = tk.BooleanVar(value=self._ctrl_topmost)
+        ttk.Checkbutton(
+            bottom, text="最前面に固定",
+            variable=self._var_topmost,
+            command=self._toggle_topmost,
+        ).pack(side=tk.LEFT)
+
+        tk.Label(bottom, text="透明度:").pack(side=tk.LEFT, padx=(12, 2))
+        self._var_alpha = tk.DoubleVar(value=self._ctrl_alpha)
+        alpha_slider = ttk.Scale(
+            bottom,
+            from_=0.2, to=1.0,
+            orient=tk.HORIZONTAL,
+            variable=self._var_alpha,
+            command=self._on_alpha_change,
+            length=80,
+        )
+        alpha_slider.pack(side=tk.LEFT)
+
+        ttk.Separator(win, orient=tk.HORIZONTAL).pack(fill=tk.X, padx=12, pady=(0, 6))
+
+        # ── キャプチャボタン ──  [3]
         self._ctrl_btn_capture = ttk.Button(
             win, text=self._btn_capture["text"],
             command=self._do_capture,
@@ -755,6 +801,20 @@ class App(tk.Tk):
         )
         self._ctrl_btn_capture.pack(fill=tk.X, padx=12, pady=(0, 4))
 
+        # ── キャプチャ画像プレビュー ──  [7]
+        PREV_W, PREV_H = PW, int(PW * 9 / 16)
+        self._ctrl_preview_lbl = tk.Label(
+            win, background="#111",
+            width=PW, height=PREV_H,
+            relief=tk.FLAT,
+        )
+        self._ctrl_preview_lbl.pack(padx=12, pady=(0, 0))
+        self._ctrl_preview_seq = tk.Label(
+            win, text="—", foreground="#666", font=("Menlo", 9)
+        )
+        self._ctrl_preview_seq.pack(pady=(0, 4))
+
+        # ── 再撮り / スキップ ──  [4]
         row = tk.Frame(win)
         row.pack(fill=tk.X, padx=12, pady=(0, 4))
         self._ctrl_btn_retake = ttk.Button(
@@ -770,20 +830,18 @@ class App(tk.Tk):
         )
         self._ctrl_btn_skip.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(4, 0))
 
-        # ── ステータス ──
+        # ── 進捗バー + ラベル ──  [5]
+        self._ctrl_progress = ttk.Progressbar(win, maximum=100, value=0, length=PW)
+        self._ctrl_progress.pack(padx=12, pady=(0, 0))
+        self._ctrl_progress_lbl = tk.Label(win, text="", font=("Helvetica", 11))
+        self._ctrl_progress_lbl.pack(pady=(0, 2))
+
+        # ── ステータス ──  [6]
         tk.Label(
             win, textvariable=self.var_status,
             font=("Helvetica", 10), foreground="#888",
             wraplength=PW, justify=tk.CENTER,
-        ).pack(fill=tk.X, padx=12, pady=(4, 2))
-
-        # ── 最前面トグル ──
-        self._var_topmost = tk.BooleanVar(value=self._ctrl_topmost)
-        ttk.Checkbutton(
-            win, text="最前面に固定",
-            variable=self._var_topmost,
-            command=self._toggle_topmost,
-        ).pack(pady=(2, 8))
+        ).pack(fill=tk.X, padx=12, pady=(0, 8))
 
         self._apply_ctrl_win_keybinds()
 
@@ -812,6 +870,11 @@ class App(tk.Tk):
         self._ctrl_topmost = self._var_topmost.get()
         if self._ctrl_win and self._ctrl_win.winfo_exists():
             self._ctrl_win.attributes("-topmost", self._ctrl_topmost)
+
+    def _on_alpha_change(self, value):
+        self._ctrl_alpha = float(value)
+        if self._ctrl_win and self._ctrl_win.winfo_exists():
+            self._ctrl_win.attributes("-alpha", self._ctrl_alpha)
 
     def _apply_ctrl_win_keybinds(self):
         if not self._ctrl_win:
@@ -853,11 +916,7 @@ class App(tk.Tk):
         if png_path and os.path.exists(png_path):
             try:
                 img = tk.PhotoImage(file=png_path)
-                w, h = img.width(), img.height()
-                # プレビューエリア (260 x 146) に収める
-                sx = max(1, -(-w // 240))
-                sy = max(1, -(-h // 135))
-                s  = max(sx, sy)
+                s = _subsample_for(img.width(), img.height(), 240, 135)
                 img = img.subsample(s, s)
                 self._ctrl_preview_lbl.config(image=img)
                 self._ctrl_preview_lbl.image = img   # GC防止
@@ -893,13 +952,20 @@ class App(tk.Tk):
         self._btn_capture.config(state=tk.DISABLED)
         self.update_idletasks()
 
+        # メインスレッドで値を取得してからスレッドに渡す（スレッド安全）
+        _ffmpeg       = self.ffmpeg
+        _device_index = self.var_device_index.get()
+        _resolution   = self.var_resolution.get()
+        _pixel_format = self.var_pixel_format.get()
+        _framerate    = int(self.var_framerate.get())
+
         def task():
             err = capture_frame(
-                ffmpeg        = self.ffmpeg,
-                device_index  = self.var_device_index.get(),
-                resolution    = self.var_resolution.get(),
-                pixel_format  = self.var_pixel_format.get(),
-                framerate     = int(self.var_framerate.get()),
+                ffmpeg        = _ffmpeg,
+                device_index  = _device_index,
+                resolution    = _resolution,
+                pixel_format  = _pixel_format,
+                framerate     = _framerate,
                 output_path   = out,
             )
             self.after(0, lambda: self._capture_done(seq_str, out, err))
@@ -1032,13 +1098,8 @@ class App(tk.Tk):
                  background=color, foreground="white").pack()
 
     def _load_thumbnail(self, path: str):
-        # FIX #4: アスペクト比を保ったまま THUMB_W×THUMB_H の枠に収める
         img = tk.PhotoImage(file=path)
-        w, h = img.width(), img.height()
-        # 縦横それぞれの縮小率を独立計算し、大きい方（より縮む）を採用
-        sx = max(1, -(-w // THUMB_W))   # ceil(w / THUMB_W)
-        sy = max(1, -(-h // THUMB_H))   # ceil(h / THUMB_H)
-        s  = max(sx, sy)
+        s = _subsample_for(img.width(), img.height(), THUMB_W, THUMB_H)
         return img.subsample(s, s)
 
     def _remove_last_thumbnail(self):

@@ -33,7 +33,7 @@ cd ~/Projects/CaptureSession
 zsh build_app.sh
 
 # Applications へコピー（ditto を使うこと。cp -r は不可）
-sudo rm -rf /Applications/CaptureSession.app
+rm -rf /Applications/CaptureSession.app
 ditto dist/CaptureSession.app /Applications/CaptureSession.app
 open /Applications/CaptureSession.app
 ```

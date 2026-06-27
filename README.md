@@ -12,7 +12,7 @@ Python / tkinter 1ファイル実装。`ffmpeg`（AVFoundation）でフレーム
 | macOS | 13 Ventura 以降（14 Sonoma / 15 Sequoia 確認済） |
 | Python | 3.9 以上 |
 | ffmpeg | 7.x / 8.x（AVFoundation 対応ビルド） |
-| tkinter | macOS 付属、または `brew install python-tk` |
+| tkinter | macOS 付属、または `brew install python-tk@3.11` |
 
 ---
 
@@ -21,7 +21,7 @@ Python / tkinter 1ファイル実装。`ffmpeg`（AVFoundation）でフレーム
 ```zsh
 brew install python ffmpeg
 # tkinter が使えない場合のみ
-brew install python-tk
+brew install python-tk@3.11
 ```
 
 ---
@@ -332,7 +332,7 @@ ditto dist/CaptureSession.app /Applications/CaptureSession.app
 `build_app.sh` が `.venv_build/` を自動作成するため、スクリプト経由でビルドすること。
 
 **ビルドエラー: `tkinter` が使えない**  
-`brew install python-tk` を実行してから再ビルドする。
+`brew install python-tk@3.11` を実行してから再ビルドする。
 
 ---
 

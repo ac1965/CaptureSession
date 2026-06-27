@@ -24,17 +24,29 @@ err()  { print -P "%F{red}✘%f $*" >&2; exit 1 }
 info "=== $APP_NAME .app ビルド開始 ==="
 
 # ── 前提チェック ────────────────────────────────────────────────
-# Python3
-if ! command -v python3 &>/dev/null; then
-    err "python3 が見つかりません。'brew install python' でインストールしてください。"
+# Python3.11 を明示的に使用する
+# (brewのpython-tk@3.11と合わせるため、汎用のpython3ではなくpython3.11を固定で探す)
+PY_CANDIDATES=(
+    "/opt/homebrew/bin/python3.11"
+    "/usr/local/bin/python3.11"
+    "python3.11"
+)
+PY=""
+for cand in "${PY_CANDIDATES[@]}"; do
+    if command -v "$cand" &>/dev/null; then
+        PY=$(command -v "$cand")
+        break
+    fi
+done
+if [[ -z "$PY" ]]; then
+    err "python3.11 が見つかりません。'brew install python@3.11' でインストールしてください。"
 fi
-PY=$(command -v python3)
 PY_VER=$($PY --version 2>&1)
 ok "Python: $PY_VER ($PY)"
 
 # tkinter
 if ! $PY -c "import tkinter" 2>/dev/null; then
-    err "tkinter が使えません。'brew install python-tk' を試してください。"
+    err "tkinter が使えません。'brew install python-tk@3.11' を試してください。"
 fi
 ok "tkinter: OK"
 

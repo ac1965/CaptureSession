@@ -5,6 +5,10 @@ HDMI キャプチャデバイスからスナップショットを順番に取得
 
 > Python/tkinter 版から移行した。QuickTime連携は廃止した。
 
+![メイン画面（待機中）](docs/images/main-window.png)
+
+![コントローラ（ライブ映像を大きく表示し、最前面・透明度を設定できる小窓）](docs/images/controller.png)
+
 ## 動作環境
 
 | 要件 | 内容 |
@@ -16,10 +20,12 @@ HDMI キャプチャデバイスからスナップショットを順番に取得
 ## ビルドと起動
 
 ```zsh
-swift test                      # コア部分のテスト
-zsh scripts/build_app.sh        # dist/CaptureSession.app（xcodebuild。ad-hoc署名）
-open dist/CaptureSession.app
+make test       # コア部分のテスト
+make run        # ビルドして起動（dist/CaptureSession.app、ad-hoc署名）
+make install    # /Applications に置く
 ```
+
+`make build` は `zsh scripts/build_app.sh`（xcodebuild）を呼ぶ。起動だけなら `open dist/CaptureSession.app`。
 
 Xcode で `CaptureSession.xcodeproj` を開いて、実行・デバッグもできる。
 

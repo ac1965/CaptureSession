@@ -65,6 +65,12 @@ Xcode で `CaptureSession.xcodeproj` を開いて、実行・デバッグもで�
 
 署名は ad-hoc で、Developer ID署名と公証は行わない（無料のDeveloper Programのため）。他のMacへ渡す場合は、受け取った側で初回だけ「右クリック → 開く」か、`xattr -cr CaptureSession.app` を実行する。
 
+ad-hoc署名は、コードを変えてビルドするたびに署名の識別子が変わり、カメラ権限の許可ダイアログが再び出る（コードが同じなら識別子は変わらない）。変わらない署名にするには、証明書の名前を `SIGN_IDENTITY` で渡す（`security find-identity -v -p codesigning` で確認）。
+
+```zsh
+SIGN_IDENTITY="Apple Development: NAME (TEAMID)" make run
+```
+
 カメラ権限は初回起動時に許可ダイアログが出る。出ない場合は次を開いて許可する。
 
 ```zsh

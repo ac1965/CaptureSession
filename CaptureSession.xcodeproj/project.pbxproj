@@ -1,0 +1,268 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		000000000000000000000101 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000100 /* AppModel.swift */; };
+		000000000000000000000103 /* CaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000102 /* CaptureService.swift */; };
+		000000000000000000000105 /* CaptureSessionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000104 /* CaptureSessionApp.swift */; };
+		000000000000000000000107 /* DeviceAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000106 /* DeviceAccess.swift */; };
+		000000000000000000000109 /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000108 /* Views.swift */; };
+		00000000000000000000011E /* CaptureCore in Frameworks */ = {isa = PBXBuildFile; productRef = 00000000000000000000011C /* CaptureCore */; };
+		00000000000000000000011F /* CaptureObjC in Frameworks */ = {isa = PBXBuildFile; productRef = 00000000000000000000011D /* CaptureObjC */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		000000000000000000000100 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		000000000000000000000102 /* CaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureService.swift; sourceTree = "<group>"; };
+		000000000000000000000104 /* CaptureSessionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSessionApp.swift; sourceTree = "<group>"; };
+		000000000000000000000106 /* DeviceAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceAccess.swift; sourceTree = "<group>"; };
+		000000000000000000000108 /* Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
+		00000000000000000000010A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		00000000000000000000010B /* CaptureSession.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CaptureSession.entitlements; sourceTree = "<group>"; };
+		00000000000000000000010C /* CaptureSession.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CaptureSession.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		000000000000000000000113 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				00000000000000000000011E /* CaptureCore in Frameworks */,
+				00000000000000000000011F /* CaptureObjC in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		00000000000000000000010D = {
+			isa = PBXGroup;
+			children = (
+				00000000000000000000010E /* App */,
+				00000000000000000000010F /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		00000000000000000000010E /* App */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000100 /* AppModel.swift */,
+				000000000000000000000102 /* CaptureService.swift */,
+				000000000000000000000104 /* CaptureSessionApp.swift */,
+				000000000000000000000106 /* DeviceAccess.swift */,
+				000000000000000000000108 /* Views.swift */,
+				00000000000000000000010A /* Info.plist */,
+				00000000000000000000010B /* CaptureSession.entitlements */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		00000000000000000000010F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				00000000000000000000010C /* CaptureSession.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		000000000000000000000110 /* CaptureSession */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 000000000000000000000116 /* Build configuration list for PBXNativeTarget "CaptureSession" */;
+			buildPhases = (
+				000000000000000000000112 /* Sources */,
+				000000000000000000000113 /* Frameworks */,
+				000000000000000000000114 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CaptureSession;
+			packageProductDependencies = (
+				00000000000000000000011C /* CaptureCore */,
+				00000000000000000000011D /* CaptureObjC */,
+			);
+			productName = CaptureSession;
+			productReference = 00000000000000000000010C /* CaptureSession.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		000000000000000000000111 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+			};
+			buildConfigurationList = 000000000000000000000115 /* Build configuration list for PBXProject "CaptureSession" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = ja;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				ja,
+				Base,
+				en,
+			);
+			mainGroup = 00000000000000000000010D;
+			packageReferences = (
+				00000000000000000000011B /* XCLocalSwiftPackageReference "." */,
+			);
+			productRefGroup = 00000000000000000000010F /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				000000000000000000000110 /* CaptureSession */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		000000000000000000000114 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		000000000000000000000112 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				000000000000000000000101 /* AppModel.swift in Sources */,
+				000000000000000000000103 /* CaptureService.swift in Sources */,
+				000000000000000000000105 /* CaptureSessionApp.swift in Sources */,
+				000000000000000000000107 /* DeviceAccess.swift in Sources */,
+				000000000000000000000109 /* Views.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		000000000000000000000117 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		000000000000000000000118 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		000000000000000000000119 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = App/CaptureSession.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 2.0.0;
+				ENABLE_HARDENED_RUNTIME = YES;
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				MARKETING_VERSION = 2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = net.ty07.capture-session;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		00000000000000000000011A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = App/CaptureSession.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 2.0.0;
+				ENABLE_HARDENED_RUNTIME = YES;
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				MARKETING_VERSION = 2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = net.ty07.capture-session;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		000000000000000000000115 /* Build configuration list for PBXProject "CaptureSession" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000000000117 /* Debug */,
+				000000000000000000000118 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		000000000000000000000116 /* Build configuration list for PBXNativeTarget "CaptureSession" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000000000119 /* Debug */,
+				00000000000000000000011A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		00000000000000000000011B /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		00000000000000000000011C /* CaptureCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CaptureCore;
+		};
+		00000000000000000000011D /* CaptureObjC */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CaptureObjC;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 000000000000000000000111 /* Project object */;
+}
